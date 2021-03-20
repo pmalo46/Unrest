@@ -1,3 +1,3 @@
 # Unrest
 
-THis project seeks to use historical data to forecast the potential durination of civil unrest events.
+This project seeks to use historical data to forecast the potential durination of civil unrest events.
