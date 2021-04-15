@@ -1,0 +1,142 @@
+---
+title: "Unrest"
+author: "Patrick Maloney"
+date: "3/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Intro
+
+ This Project will look at events of civil unrest, and use historical data to forecast the potential duration of such events.
+
+### Importing data
+
+This data comes from the SPEED data set, which was run out of the University of Illinois and compiles unrest events from 1946 to 2005. I have taken a subset of the data that includes events outside the US that lasted longer than one day.
+
+```{r}
+library(RCurl)
+library(tidyverse)
+library(VIM)
+library(dplyr)
+
+data_raw <- read.csv("https://raw.githubusercontent.com/pmalo46/Unrest/main/civil-unrest-event-data-QueryResult.csv")
+
+head(data_raw, 25)
+
+```
+
+
+### EDA
+
+This data encompasses a number of decades and covers events across the world, so there is likely to be lots of missing data. View the codebook file in this project  repository for the SPEED project's definition of each variable in the dataset.
+
+```{r}
+str(data_raw)
+summary(data_raw)
+```
+
+```{r}
+aggr(data_raw)
+```
+
+I need to drop the columns that are majority missing values. 
+
+```{r}
+cond1 <- sapply(data_raw, function(col) sum(is.na(col)) > 2000)
+cond2 <- sapply(data_raw, function(col) sum(col == "") > 2000)
+mask <- !(cond1 | cond2)
+df <- data_raw[, !cond1, drop=FALSE]
+summary(df)
+str(df)
+```
+
+```{r}
+df <- df[-c(5:13, 25:29)] 
+str(df)
+```
+
+I have now removed columns with a majority of missing values and dropped columns with specific names like organizations perpatraiting events or victim groups. I have also removed columns containing metadata from the publications.
+
+```{r}
+aggr(df)
+summary(df)
+```
+
+```{r}
+boxplot(df$day_span)
+summary(df$day_span)
+qqnorm(df$day_span, pch = 1, frame = FALSE)
+qqline(df$day_span, col = "steelblue", lwd = 2)
+```
+
+I was planning to use day_span as my response variable for a multivariate linear regression model, but after checking the conditions for regression, I can see that this variable is not normally distributed. A classification model might be a better choice. Now The data types must be fixed. Many categorical variables are listed as integers, where they should be factors, since the numbers correspond to categorical values, not actual integers.
+
+```{r}
+df <-  subset(df, select = -c(eventid, aid, year, code_year, code_month, code_day, code_date, gp3, gp4, gp7, gp8, ambig_wgt, from_eid, to_eid, pinpoint, date_typ, ctry_bias, quasi_event))
+
+df$month <- factor(df$month)
+df$know_ini <- factor(df$know_ini)
+df$ev_type <- factor(df$ev_type)
+df$loc_type <- factor(df$loc_type)
+df$weap_grd <- factor(df$weap_grd)
+df$e_length <- factor(df$e_length)
+df$region <- factor(df$region)
+df$weapon <- factor(df$weapon)
+
+str(df)
+```
+
+Now that we have dropped unhelpful columns, let's slice the data to only explore destabalizing events and ignore quasi-events.
+
+```{r}
+df1 <- filter(df, event==TRUE)
+head(df1, 25)
+
+```
+
+The e_length variable seems to have some discrepancy with the day_span value. In many cases the values don't match up. Therefore, I'm going to create a new variable for event duration that will put the data into buckets based on day_span
+
+```{r}
+df1 <- df1 %>% mutate(duration = case_when(day_span <= 7 ~ "1",
+                            day_span > 7 & day_span <= 30 ~ "2", 
+                           day_span > 30 ~ "3"))
+df1$duration <- factor(df1$duration)
+head(df1, 25)
+
+```
+
+```{r}
+library(rpart)
+library(rpart.plot)
+tree <- rpart(duration ~ n_injurd +day,  df1, control = rpart.control(minsplit = 1, minbucket = 1, cp = 0.001))
+x <- tail(df1, 1)
+
+result <- predict(tree, x)
+print(result)
+```
+
+
+```{r}
+rpart.plot(tree, box.palette = "white")
+```
+
+
+The decision tree model isn't working as well as I hoped, Let's try a random forest algorithm.
+
+```{r}
+library(randomForest)
+
+rf_df <- subset(df1, select = -c(country, date, day_span, jul_start_date, jul_end_date, e_length))
+
+rf <- randomForest(duration ~ ., data = rf_df, na.action = na.omit)
+rf
+```
+
+
+
+
+
