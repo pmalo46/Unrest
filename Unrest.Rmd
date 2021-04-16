@@ -25,7 +25,7 @@ library(dplyr)
 
 data_raw <- read.csv("https://raw.githubusercontent.com/pmalo46/Unrest/main/civil-unrest-event-data-QueryResult.csv")
 
-head(data_raw, 25)
+tail(data_raw, 25)
 
 ```
 
@@ -112,8 +112,8 @@ head(df1, 25)
 ```{r}
 library(rpart)
 library(rpart.plot)
-tree <- rpart(duration ~ n_injurd +day,  df1, control = rpart.control(minsplit = 1, minbucket = 1, cp = 0.001))
-x <- tail(df1, 1)
+tree <- rpart(duration ~ arrests+know_ini+region+coup,  df1, control = rpart.control(minsplit = 1, minbucket = 1, cp = 0.001))
+x <- tail(df1)
 
 result <- predict(tree, x)
 print(result)
@@ -132,11 +132,34 @@ library(randomForest)
 
 rf_df <- subset(df1, select = -c(country, date, day_span, jul_start_date, jul_end_date, e_length))
 
-rf <- randomForest(duration ~ ., data = rf_df, na.action = na.omit)
+trainIndex <- createDataPartition(rf_df$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+train_data <- rf_df[ trainIndex,]
+test_data  <- rf_df[-trainIndex,]
+
+rf <- randomForest(duration ~ ., data = train_data, na.action = na.omit)
 rf
+varImpPlot(rf)
 ```
 
 
+Let's try a multinomial logistic regression model for comparison
+
+```{r}
+library(nnet)
+library(caret)
 
 
+
+MLR <- multinom(duration ~ ., train_data, na.action = na.omit)
+#summary(MLR)
+test_mlr <- predict(MLR, test_data)
+
+confusionMatrix(test_data, test$duration)
+```
+```{r}
+test_rf <- predict(rf, test)
+confusionMatrix(test_rf, test$duration)
+```
 
