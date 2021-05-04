@@ -76,7 +76,7 @@ qqline(df$day_span, col = "steelblue", lwd = 2)
 I was planning to use day_span as my response variable for a multivariate linear regression model, but after checking the conditions for regression, I can see that this variable is not normally distributed. A classification model might be a better choice. Now The data types must be fixed. Many categorical variables are listed as integers, where they should be factors, since the numbers correspond to categorical values, not actual integers.
 
 ```{r}
-df <-  subset(df, select = -c(eventid, aid, year, code_year, code_month, code_day, code_date, gp3, gp4, gp7, gp8, ambig_wgt, from_eid, to_eid, pinpoint, date_typ, ctry_bias, quasi_event))
+df <-  subset(df, select = -c(eventid, aid, year, code_year, code_month, code_day, code_date, gp3, gp4, gp7, gp8, ambig_wgt, from_eid, to_eid, pinpoint, date_typ, ctry_bias, quasi_event, n_killed_p))
 
 df$month <- factor(df$month)
 df$know_ini <- factor(df$know_ini)
@@ -129,6 +129,7 @@ The decision tree model isn't working as well as I hoped, Let's try a random for
 
 ```{r}
 library(randomForest)
+library(caret)
 
 rf_df <- subset(df1, select = -c(country, date, day_span, jul_start_date, jul_end_date, e_length))
 
@@ -156,10 +157,155 @@ MLR <- multinom(duration ~ ., train_data, na.action = na.omit)
 #summary(MLR)
 test_mlr <- predict(MLR, test_data)
 
-confusionMatrix(test_data, test$duration)
+confusionMatrix(test_mlr, test_data$duration)
 ```
 ```{r}
-test_rf <- predict(rf, test)
-confusionMatrix(test_rf, test$duration)
+test_rf <- predict(rf, test_data)
+confusionMatrix(test_rf, test_data$duration)
 ```
+
+Looks like the random forrest model significantly out-performs the multi-nomial logistic regression model. It looks like most of the prediction errors are made in the class 2. The "longer than a week, less than a month" events are the hardest to identify. Thus let's try a binanry classification model to see if there is a notable improvement in accuracy.
+
+```{r}
+df_binary <- df1 %>% mutate(duration = case_when(day_span <= 15 ~ "0",
+                            day_span > 15 ~ "1"))
+df_binary$duration <- factor(df_binary$duration)
+head(df_binary, 25)
+
+
+```
+```{r}
+rf_df2 <- subset(df_binary, select = -c(country, date, day_span, jul_start_date, jul_end_date, e_length))
+
+trainIndex <- createDataPartition(rf_df2$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+binary_train_data <- rf_df2[ trainIndex,]
+binary_test_data  <- rf_df2[-trainIndex,]
+
+rf_binary <- randomForest(duration ~ ., data = binary_train_data, na.action = na.omit)
+rf_binary
+varImpPlot(rf_binary)
+```
+
+```{r}
+test_rf_binary <- predict(rf_binary, binary_test_data)
+confusionMatrix(test_rf_binary, binary_test_data$duration)
+```
+```{r}
+rf_df3 <- subset(df_binary, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length))
+
+trainIndex <- createDataPartition(rf_df3$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+binary_train_data3 <- rf_df3[ trainIndex,]
+binary_test_data3  <- rf_df3[-trainIndex,]
+
+rf_binary3 <- randomForest(duration ~ ., data = binary_train_data3, na.action = na.omit)
+rf_binary3
+varImpPlot(rf_binary3)
+
+```
+```{r}
+test_rf_binary3 <- predict(rf_binary3, binary_test_data3)
+confusionMatrix(test_rf_binary3, binary_test_data3$duration)
+```
+
+
+```{r}
+plot(df1$month)
+```
+
+```{r}
+df_16_7 <- df_binary %>% mutate(day16 = factor(ifelse(day == 16, 1,0)),
+                            month7 = factor(ifelse(month == 7, 1,0)))
+head(df_16_7)
+```
+
+```{r}
+rf_df4 <- subset(df_16_7, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length))
+
+trainIndex <- createDataPartition(rf_df4$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+binary_train_data4 <- rf_df4[ trainIndex,]
+binary_test_data4  <- rf_df4[-trainIndex,]
+
+rf_binary4 <- randomForest(duration ~ ., data = binary_train_data4, na.action = na.omit)
+rf_binary4
+varImpPlot(rf_binary4)
+```
+
+```{r}
+test_rf_binary4 <- predict(rf_binary4, binary_test_data4)
+confusionMatrix(test_rf_binary3, binary_test_data3$duration, positive = '1')
+```
+
+I'm going to replace the day variable with a categorical 'week' variable (week of the month)
+```{r}
+df_binary <- df_binary %>% mutate(week = case_when(day <= 7 ~ "1",
+                            day > 7 & day <= 14 ~ "2", 
+                           day > 14 & day <= 21 ~ "3",
+                           day > 21 & day <= 28 ~ "4",
+                           day > 28 ~ "5"))
+df_binary$week <- factor(df_binary$week)
+head(df_binary)
+```
+
+```{r}
+rf_df5 <- subset(df_binary, select = -c(country, date, day, day_span, jul_start_date, jul_end_date, e_length))
+
+trainIndex <- createDataPartition(rf_df5$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+binary_train_data5 <- rf_df5[ trainIndex,]
+binary_test_data5  <- rf_df5[-trainIndex,]
+
+rf_binary5 <- randomForest(duration ~ ., data = binary_train_data5, na.action = na.omit)
+rf_binary5
+varImpPlot(rf_binary5)
+```
+```{r}
+test_rf_binary5 <- predict(rf_binary5, binary_test_data5)
+confusionMatrix(test_rf_binary5, binary_test_data5$duration, positive = '1')
+```
+
+That looks like a pretty decent model. Lets compare with a logistic regression once more
+
+```{r}
+logit1 <- glm(duration ~ ., family = 'binomial', data = binary_train_data5)
+summary(logit1)
+
+```
+
+```{r}
+test_logit1 <- predict(logit1, binary_test_data5)
+predicted.classes <- ifelse(test_logit1 > 0.5, 1, 0)
+confusionMatrix(factor(predicted.classes), binary_test_data5$duration, positive = '1')
+```
+
+```{r}
+rf_t10 <- subset(df_binary, select = c(month, week, loc_type, region, weapon, n_killed_a, know_ini, ev_type, sc_animosity, anti_gov_sentmnts, duration))
+
+trainIndex <- createDataPartition(rf_t10$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+binary_train_t10 <- rf_t10[ trainIndex,]
+binary_test_t10  <- rf_t10[-trainIndex,]
+
+rf_t10 <- randomForest(duration ~ ., data = binary_train_t10, na.action = na.omit)
+rf_t10
+varImpPlot(rf_t10)
+```
+```{r}
+test_rf_t10 <- predict(rf_t10, binary_test_t10)
+confusionMatrix(test_rf_t10, binary_test_t10$duration, positive = '1')
+```
+
+This is a much more simple model that has similar perfomance to the one with all the variables. 
+
+
+
+
+
 
