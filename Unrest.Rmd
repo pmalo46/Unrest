@@ -167,8 +167,8 @@ confusionMatrix(test_rf, test_data$duration)
 Looks like the random forrest model significantly out-performs the multi-nomial logistic regression model. It looks like most of the prediction errors are made in the class 2. The "longer than a week, less than a month" events are the hardest to identify. Thus let's try a binanry classification model to see if there is a notable improvement in accuracy.
 
 ```{r}
-df_binary <- df1 %>% mutate(duration = case_when(day_span <= 15 ~ "0",
-                            day_span > 15 ~ "1"))
+df_binary <- df1 %>% mutate(duration = case_when(day_span <= 17 ~ "0",
+                            day_span > 17 ~ "1"))
 df_binary$duration <- factor(df_binary$duration)
 head(df_binary, 25)
 
@@ -190,7 +190,7 @@ varImpPlot(rf_binary)
 
 ```{r}
 test_rf_binary <- predict(rf_binary, binary_test_data)
-confusionMatrix(test_rf_binary, binary_test_data$duration)
+confusionMatrix(test_rf_binary, binary_test_data$duration, positive = '1')
 ```
 ```{r}
 rf_df3 <- subset(df_binary, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length))
@@ -305,6 +305,10 @@ confusionMatrix(test_rf_t10, binary_test_t10$duration, positive = '1')
 This is a much more simple model that has similar perfomance to the one with all the variables. 
 
 
+```{r}
+day16 <- filter(df1, day == 16)
+day16
+```
 
 
 
