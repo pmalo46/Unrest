@@ -285,13 +285,13 @@ confusionMatrix(factor(predicted.classes), binary_test_data5$duration, positive 
 ```
 
 ```{r}
-rf_t10 <- subset(df_binary, select = c(month, week, loc_type, region, weapon, n_killed_a, know_ini, ev_type, sc_animosity, anti_gov_sentmnts, duration))
+rf_t10_df <- subset(df_binary, select = c(month, week, loc_type, region, weapon, n_killed_a, know_ini, ev_type, sc_animosity, anti_gov_sentmnts, duration))
 
-trainIndex <- createDataPartition(rf_t10$duration, p = .8, 
+trainIndex <- createDataPartition(rf_t10_df$duration, p = .8, 
                                   list = FALSE, 
                                   times = 1)
-binary_train_t10 <- rf_t10[ trainIndex,]
-binary_test_t10  <- rf_t10[-trainIndex,]
+binary_train_t10 <- rf_t10_df[ trainIndex,]
+binary_test_t10  <- rf_t10_df[-trainIndex,]
 
 rf_t10 <- randomForest(duration ~ ., data = binary_train_t10, na.action = na.omit)
 rf_t10
@@ -311,5 +311,7 @@ day16
 ```
 
 
-
+```{r}
+#write.csv(rf_t10_df, 'dataShiny.csv', row.names = FALSE)
+```
 
