@@ -122,7 +122,7 @@ server <- function(input, output) {
     model1pred <- reactive ({
         month <- factor(input$month, levels = levels(data_app$month)) 
         week <- factor(input$week, levels = levels(data_app$week))
-        region <- factor(input$region, levels = levels(data_app$regio))
+        region <- factor(input$region, levels = levels(data_app$region))
         loc_type <- factor(input$loc_type, levels = levels(data_app$loc_type))
         ev_type <- factor(input$ev_type, levels = levels(data_app$ev_type))
         n_killed_a <- input$n_killed_a
