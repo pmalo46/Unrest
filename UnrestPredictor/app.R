@@ -5,8 +5,8 @@ library(DT)
 
  ui <- fluidPage(
   titlePanel("Predicting If A Civil Unrest Event Will Last Beyond Two Weeks"),
-   sidebarLayout(
-     sidebarPanel(
+   fluidRow(
+     column(4,
          selectInput("region", "Region",
                      c("Sub-Saharan Africa" = "1",
                        "Asia" = "2",
@@ -51,13 +51,22 @@ library(DT)
                        "Political Attacks" = "2",
                        "Disruptive State Acts" = "4",
                        "Political Reconfigurations" = "5")),
-         numericInput("n_killed_a", "Number of Fatalities",value = 0, min = 0, step = 1),
-         numericInput("n_injurd", "Number of People Injured",value = 0, min = 0, step = 1),
-         selectInput("know_ini", "Is the Initiator (individual or group) of the event known?",
+         selectInput("know_ini", "Is the Initiator (individual or group) known?",
                      c("Initiator Unknown" = "0",
                        "Initiator Known" = "1",
                        "Initiator Ambiguous" = "2",
                        "Initiator Suspected" = "5")),
+     ),
+     column(4, 
+            selectInput("sc_animosity", "Socio-cultural Animosity",
+                        c("True" = TRUE,
+                          "False" = FALSE)),
+            selectInput("anti_gov_sentmnts", "Anti-government sentiments",
+                        c("True" = TRUE,
+                          "False" = FALSE)),
+            selectInput("pol_desires", "Desire for Political Rights",
+                        c("True" = TRUE,
+                          "False" = FALSE)),
          selectInput("weapon", "Highest Class of Weapon Used",
                      c("No Weapon Used" = '1',
                        "Fake weapon Used" = '2',
@@ -86,24 +95,23 @@ library(DT)
                        "Biochemical Weapons" = '25',
                        "Unspecified" = '26',
                        "Other weapon" = '27')),
-         selectInput("sc_animosity", "Socio-cultural Animosity",
-                     c("True" = TRUE,
-                       "False" = FALSE)),
-         selectInput("anti_gov_sentmnts", "Anti-government sentiments",
-                     c("True" = TRUE,
-                       "False" = FALSE)),
-         selectInput("pol_desires", "Desire for Political Rights?",
-                     c("True" = TRUE,
-                       "False" = FALSE)),
+         
+     ),
+      column(4,
+         numericInput("n_killed_a", "Number of Fatalities",value = 0, min = 0, step = 1),
+         numericInput("n_injurd", "Number of People Injured",value = 0, min = 0, step = 1),
+         br(),
          actionButton("submit", ("Submit"))
          
             
-),
+)),
 
-  mainPanel(
+hr(),
+
+  fluidRow(
 tabPanel("Prediction",h3(textOutput("pred1"))),
 tabPanel("Probability",h3(textOutput("pred2")))
- )))
+ ))
 
 
 
