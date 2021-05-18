@@ -71,6 +71,7 @@ boxplot(df$day_span)
 summary(df$day_span)
 qqnorm(df$day_span, pch = 1, frame = FALSE)
 qqline(df$day_span, col = "steelblue", lwd = 2)
+hist(df1$day_span, breaks = 800, xlim = c(2, 600))
 ```
 
 I was planning to use day_span as my response variable for a multivariate linear regression model, but after checking the conditions for regression, I can see that this variable is not normally distributed. A classification model might be a better choice. Now The data types must be fixed. Many categorical variables are listed as integers, where they should be factors, since the numbers correspond to categorical values, not actual integers.
@@ -107,6 +108,39 @@ df1 <- df1 %>% mutate(duration = case_when(day_span <= 7 ~ "1",
 df1$duration <- factor(df1$duration)
 head(df1, 25)
 
+```
+
+It seems that the month and day values are taken as an average instead of the start date. lets add other columns for the start month and start day using the julian date
+```{r}
+jul_conv <- function (sdate, weekday = FALSE) 
+{
+    attr(sdate, "class") <- NULL
+    sdate <- floor(sdate + 2431456)
+    wday <- as.integer((sdate + 1)%%7 + 1)
+    temp <- ((sdate - 1867216) - 0.25)/36524.25
+    sdate <- ifelse(sdate >= 2299161, trunc(sdate + 1 + temp - 
+        trunc(0.25 * temp)), sdate)
+    jb <- sdate + 1524
+    jc <- trunc(6680 + ((jb - 2439870) - 122.1)/365.25)
+    jd <- trunc(365.25 * jc)
+    je <- trunc((jb - jd)/30.6001)
+    day <- (jb - jd) - trunc(30.6001 * je)
+    month <- as.integer(ifelse(je > 13, je - 13, je - 1))
+    year <- as.integer(ifelse(month > 2, jc - 4716, jc - 4715))
+    year <- as.integer(ifelse(year <= 0, year - 1, year))
+    if (weekday) 
+        list(month = month, day = day, year = year, weekday = wday)
+    else list(month = month, day = day, year = year)
+}
+
+conv_dates <- jul_conv(df1$jul_start_date, weekday = TRUE)
+df1$s_month <- factor(conv_dates$month)
+df1$s_day <- factor(conv_dates$day)
+df1$weekday <- factor(conv_dates$weekday)
+head(df1)
+plot(df1$s_day)
+plot(df1$s_month)
+plot(df1$weekday)
 ```
 
 ```{r}
@@ -175,7 +209,7 @@ head(df_binary, 25)
 
 ```
 ```{r}
-rf_df2 <- subset(df_binary, select = -c(country, date, day_span, jul_start_date, jul_end_date, e_length))
+rf_df2 <- subset(df_binary, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length))
 
 trainIndex <- createDataPartition(rf_df2$duration, p = .8, 
                                   list = FALSE, 
@@ -193,7 +227,7 @@ test_rf_binary <- predict(rf_binary, binary_test_data)
 confusionMatrix(test_rf_binary, binary_test_data$duration, positive = '1')
 ```
 ```{r}
-rf_df3 <- subset(df_binary, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length))
+rf_df3 <- subset(df_binary, select = -c(country, date, day, s_day, month, day_span, jul_start_date, jul_end_date, e_length))
 
 trainIndex <- createDataPartition(rf_df3$duration, p = .8, 
                                   list = FALSE, 
@@ -208,22 +242,27 @@ varImpPlot(rf_binary3)
 ```
 ```{r}
 test_rf_binary3 <- predict(rf_binary3, binary_test_data3)
-confusionMatrix(test_rf_binary3, binary_test_data3$duration)
+confusionMatrix(test_rf_binary3, binary_test_data3$duration, positive = '1')
 ```
-
+Why is the day of the month so predictive?
 
 ```{r}
-plot(df1$month)
+plot(df_binary$duration ~ df_binary$s_day)
 ```
-
+The first day of the month looks to be extremely predictive. but if we look at how the events are coded, it seems that the most of the events were had to use an estimated start date instead of a precise one. This could play a factor if estimated dates for longer term events were just pegged to the first of a month.
 ```{r}
-df_16_7 <- df_binary %>% mutate(day16 = factor(ifelse(day == 16, 1,0)),
-                            month7 = factor(ifelse(month == 7, 1,0)))
+#number of observations coded as estimated start date instead of precise start date
+sum(is.na(data_raw$jul_psd))
+```
+Given this line of thinking, there is too much risk of the s_day value over-influencing the model if the information of start dates isn't highly accurate. It may be better to drop the date and month variables and rely on other factors. This may hurt the scores on the evaluations, but the model may perform better in the wild as a result.
+```{r}
+df_16_7 <- df_binary %>% mutate(day1 = ifelse(s_day == 1, TRUE,FALSE),
+                            month1 = ifelse(month == 1, TRUE,FALSE))
 head(df_16_7)
 ```
 
 ```{r}
-rf_df4 <- subset(df_16_7, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length))
+rf_df4 <- subset(df_16_7, select = -c(country, date, day, month,s_day, s_month, day_span, jul_start_date, jul_end_date, e_length))
 
 trainIndex <- createDataPartition(rf_df4$duration, p = .8, 
                                   list = FALSE, 
@@ -241,9 +280,9 @@ test_rf_binary4 <- predict(rf_binary4, binary_test_data4)
 confusionMatrix(test_rf_binary3, binary_test_data3$duration, positive = '1')
 ```
 
-I'm going to replace the day variable with a categorical 'week' variable (week of the month)
+I'm going to replace the s_day variable with a categorical 'week' variable (week of the month)
 ```{r}
-df_binary <- df_binary %>% mutate(week = case_when(day <= 7 ~ "1",
+df_binary <- df_binary %>% mutate(week = case_when(s_day <= 7 ~ "1",
                             day > 7 & day <= 14 ~ "2", 
                            day > 14 & day <= 21 ~ "3",
                            day > 21 & day <= 28 ~ "4",
@@ -306,12 +345,63 @@ This is a much more simple model that has similar perfomance to the one with all
 
 
 ```{r}
-day16 <- filter(df1, day == 16)
+day16 <- filter(df_binary, day == 16)
 day16
 ```
 
 
+
 ```{r}
-#write.csv(rf_t10_df, 'dataShiny.csv', row.names = FALSE)
+asia <- filter(df_binary, region == '2') %>% subset(select = -c(country, date, day, day_span, jul_start_date, jul_end_date, e_length))
+
+trainIndex <- createDataPartition(asia$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+asia_train <- asia[ trainIndex,]
+asia_test  <- asia[-trainIndex,]
+
+rf_asia <- randomForest(duration ~ ., data = asia_train, na.action = na.omit)
+rf_asia
+varImpPlot(rf_asia)
+
 ```
+
+```{r}
+test_asia <- predict(rf_asia, asia_test)
+confusionMatrix(test_asia, asia_test$duration, positive = '1')
+```
+
+
+```{r}
+df716 <- df_binary %>% filter(day == 16, month == '7')
+
+```
+
+```{r}
+library(ggplot2)
+plot(df1$s_month, main = "Events by Month", xlab = "Month", ylab = "Frequency")
+plot(df1$s_day, main = "Events by Start Day", xlab = "Day", ylab = "Frequency")
+plot(df716$region, main = "7/16 Events, by Region", xaxt = "n")
+xtick = c("SS Africa", "Asia", "Europe", "LatAm&Car", "Canada", "Oceania", "N Africa", "MidEast")
+#axis(side=1, at=seq(0.5, 10, 1.25), labels = FALSE)
+text(x=seq(0.75, 10, 1.25),  par("usr")[3], 
+     labels = xtick, srt = 60, pos = 2.5, xpd = TRUE)
+
+```
+
+```{r}
+x <- df_binary %>% filter(duration == '1')
+plot(duration ~ loc_type, df2)
+```
+
+
+
+
+
+
+
+
+
+
+
 

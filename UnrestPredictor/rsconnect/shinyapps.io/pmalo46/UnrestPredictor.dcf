@@ -1,0 +1,13 @@
+name: UnrestPredictor
+title: UnrestPredictor
+username:
+account: pmalo46
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4123042
+bundleId: 4609714
+url: https://pmalo46.shinyapps.io/UnrestPredictor/
+when: 1621302562.53709
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: dataShiny.csv

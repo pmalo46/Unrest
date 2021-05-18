@@ -7,8 +7,6 @@ library(DT)
   titlePanel("Predicting If A Civil Unrest Event Will Last Beyond Two Weeks"),
    sidebarLayout(
      sidebarPanel(
-         numericInput("month", "Month",value = 1, min = 1, max = 12, step = 1),
-         numericInput("week", "During which week of the month did the event start?",value = 1, min = 1, max = 5, step = 1),
          selectInput("region", "Region",
                      c("Sub-Saharan Africa" = "1",
                        "Asia" = "2",
@@ -54,12 +52,13 @@ library(DT)
                        "Disruptive State Acts" = "4",
                        "Political Reconfigurations" = "5")),
          numericInput("n_killed_a", "Number of Fatalities",value = 0, min = 0, step = 1),
+         numericInput("n_injurd", "Number of People Injured",value = 0, min = 0, step = 1),
          selectInput("know_ini", "Is the Initiator (individual or group) of the event known?",
                      c("Initiator Unknown" = "0",
                        "Initiator Known" = "1",
                        "Initiator Ambiguous" = "2",
                        "Initiator Suspected" = "5")),
-         selectInput("weapon", "Type of Weapon Used",
+         selectInput("weapon", "Highest Class of Weapon Used",
                      c("No Weapon Used" = '1',
                        "Fake weapon Used" = '2',
                        "Body Parts" = '3',
@@ -93,20 +92,22 @@ library(DT)
          selectInput("anti_gov_sentmnts", "Anti-government sentiments",
                      c("True" = TRUE,
                        "False" = FALSE)),
+         selectInput("pol_desires", "Desire for Political Rights?",
+                     c("True" = TRUE,
+                       "False" = FALSE)),
          actionButton("submit", ("Submit"))
          
             
 ),
 
   mainPanel(
-tabPanel("Prediction",textOutput("pred1")))
- ))
+tabPanel("Prediction",h3(textOutput("pred1"))),
+tabPanel("Probability",h3(textOutput("pred2")))
+ )))
 
 
 
-data_app <- read.csv("dataShiny.csv", header = TRUE)
-data_app$month <- factor(data_app$month)
-data_app$week <- factor(data_app$week)
+data_app <- read.csv("dataShiny2.csv", header = TRUE)
 data_app$loc_type <- factor(data_app$loc_type)
 data_app$region <- factor(data_app$region)
 data_app$weapon <- factor(data_app$weapon)
@@ -116,40 +117,77 @@ data_app$duration <- factor(data_app$duration)
 
 
 server <- function(input, output) {
+    set.seed(46)
     
     model1 <- randomForest(duration ~ ., data = data_app, na.action = na.omit)
     
-    model1pred <- reactive ({
-        month <- factor(input$month, levels = levels(data_app$month)) 
-        week <- factor(input$week, levels = levels(data_app$week))
+    model1pred <- eventReactive (input$submit,{
         region <- factor(input$region, levels = levels(data_app$region))
         loc_type <- factor(input$loc_type, levels = levels(data_app$loc_type))
         ev_type <- factor(input$ev_type, levels = levels(data_app$ev_type))
         n_killed_a <- input$n_killed_a
+        n_injurd <- input$n_injurd
         know_ini <- factor(input$know_ini, levels = levels(data_app$know_ini))
         weapon <- factor(input$weapon, levels = levels(data_app$weapon))
         sc_animosity <- as.logical(input$sc_animosity)
         anti_gov_sentmnts <- as.logical(input$anti_gov_sentmnts)
+        pol_desires <- as.logical(input$pol_desires)
         
         newdata = data.frame(
-            month = month,
-            week = week, 
             region = region, 
             loc_type = loc_type,
             ev_type = ev_type,
             n_killed_a = n_killed_a,
+            n_injurd = n_injurd,
             know_ini = know_ini,
             weapon = weapon,
             sc_animosity = sc_animosity,
-            anti_gov_sentmnts = anti_gov_sentmnts)
-        print(str(newdata))
+            anti_gov_sentmnts = anti_gov_sentmnts,
+            pol_desires = pol_desires)
         
-        predict(model1, newdata)
-        
+       res <- predict(model1, newdata)
+       print(res)
+     
     })
+    
+     prob <- eventReactive(input$submit,{
+       region <- factor(input$region, levels = levels(data_app$region))
+       loc_type <- factor(input$loc_type, levels = levels(data_app$loc_type))
+       ev_type <- factor(input$ev_type, levels = levels(data_app$ev_type))
+       n_killed_a <- input$n_killed_a
+       n_injurd <- input$n_injurd
+       know_ini <- factor(input$know_ini, levels = levels(data_app$know_ini))
+       weapon <- factor(input$weapon, levels = levels(data_app$weapon))
+       sc_animosity <- as.logical(input$sc_animosity)
+       anti_gov_sentmnts <- as.logical(input$anti_gov_sentmnts)
+       pol_desires <- as.logical(input$pol_desires)
+       
+       newdata = data.frame(
+         region = region, 
+         loc_type = loc_type,
+         ev_type = ev_type,
+         n_killed_a = n_killed_a,
+         n_injurd = n_injurd,
+         know_ini = know_ini,
+         weapon = weapon,
+         sc_animosity = sc_animosity,
+         anti_gov_sentmnts = anti_gov_sentmnts,
+         pol_desires = pol_desires)
+       
+       prob1 <- predict(model1, newdata, type = "prob")[,2]
+       print(prob1)})
+    
     output$pred1 <- renderText({
-        model1pred()
+       ifelse(model1pred()== 0, "This event projects to be a SHORT-TERM event", "This event projects to be a LONG-TERM event")
     })
+    
+    output$pred2 <- renderText({
+      ifelse(model1pred()== 0, 
+             sprintf("with a %.1f%% probability of lasting two weeks or less", (1-prob())*100),
+             sprintf("with a %.1f%% probability of lasting more than two weeks", prob()*100))
+    
+    })
+    
 }
 
 

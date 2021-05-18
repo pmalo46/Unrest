@@ -1,0 +1,139 @@
+---
+title: "unrest2"
+author: "Patrick Maloney"
+date: "5/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Strating fresh with the cleaned data from the mess of the last sheet
+
+```{r}
+library(RCurl)
+library(tidyverse)
+library(VIM)
+library(dplyr)
+library(randomForest)
+library(caret)
+
+df1 <- read.csv('df_binary.csv')
+df2 <- read.csv('three_cat.csv')
+
+df1$month <- factor(df1$month)
+df1$know_ini <- factor(df1$know_ini)
+df1$ev_type <- factor(df1$ev_type)
+df1$loc_type <- factor(df1$loc_type)
+df1$weap_grd <- factor(df1$weap_grd)
+df1$region <- factor(df1$region)
+df1$duration <- factor(df1$duration)
+df1$weapon <- factor(df1$weapon)
+df1$s_month <- factor(df1$s_month)
+df1$s_day <- factor(df1$s_day)
+df1$week <- factor(df1$week)
+df1$weekday <- factor(df1$weekday)
+df2$month <- factor(df2$month)
+df2$know_ini <- factor(df2$know_ini)
+df2$ev_type <- factor(df2$ev_type)
+df2$loc_type <- factor(df2$loc_type)
+df2$weap_grd <- factor(df2$weap_grd)
+df2$region <- factor(df2$region)
+df2$duration <- factor(df2$duration)
+df2$weapon <- factor(df2$weapon)
+df2$s_month <- factor(df2$s_month)
+df2$s_day <- factor(df2$s_day)
+df2$week <- factor(df2$week)
+df2$weekday <- factor(df2$weekday)
+head(df1)
+head(df2)
+```
+
+Random forest modeling
+```{r}
+rf_df1 <- subset(df1, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length, week))
+
+trainIndex <- createDataPartition(rf_df1$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+binary_train_data <- rf_df1[ trainIndex,]
+binary_test_data  <- rf_df1[-trainIndex,]
+
+rf_binary <- randomForest(duration ~ ., data = binary_train_data, na.action = na.omit)
+rf_binary
+varImpPlot(rf_binary)
+test_rf_binary <- predict(rf_binary, binary_test_data)
+confusionMatrix(test_rf_binary, binary_test_data$duration, positive = '1')
+```
+
+
+
+```{r}
+rf_df2 <- subset(df2, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length, week))
+
+trainIndex <- createDataPartition(rf_df2$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+cat3_train_data <- rf_df2[ trainIndex,]
+cat3_test_data  <- rf_df2[-trainIndex,]
+
+rf_3cat <- randomForest(duration ~ ., data = cat3_train_data, na.action = na.omit)
+rf_3cat
+varImpPlot(rf_3cat)
+test_rf_3cat <- predict(rf_3cat, cat3_test_data)
+confusionMatrix(test_rf_3cat, cat3_test_data$duration, positive = '1')
+```
+
+
+The models looks very accurate in the evaluation data, but I believe the model is overfitted to the data, and the dependence on s_day is likely the result of longer events being given an estimated start day of the first of the month. The same may be true for s_month being assigned January 1 for years-long events where the precise start is not known. It is better to remove these variables.
+
+```{r}
+rf_df1a <- subset(df1, select = -c(country, date, day, month, day_span, jul_start_date, jul_end_date, e_length, week, s_day, s_month, weekday))
+
+trainIndex <- createDataPartition(rf_df1a$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+binary_train_data <- rf_df1a[ trainIndex,]
+binary_test_data  <- rf_df1a[-trainIndex,]
+
+rf_binary2 <- randomForest(duration ~ ., data = binary_train_data, na.action = na.omit)
+rf_binary2
+varImpPlot(rf_binary2)
+test_rf_binary2 <- predict(rf_binary2, binary_test_data)
+confusionMatrix(test_rf_binary2, binary_test_data$duration, positive = '1')
+```
+
+Let's compare with a logisitic regression model
+
+```{r}
+no.na_df <- na.omit(binary_train_data)
+no.na_test <- na.omit(binary_test_data)
+logit1 <- glm(duration ~ ., family = 'binomial', data = no.na_df, na.action = na.omit)
+summary(logit1)
+test_logit1 <- predict(logit1, no.na_test)
+predicted.classes <- ifelse(test_logit1 > 0.5, 1, 0)
+confusionMatrix(factor(predicted.classes), no.na_test$duration, positive = '1')
+```
+
+Random Forrest appears to outperform logit. Let's try to simplify the model
+```{r}
+set.seed(46)
+rf_df_t10 <- subset(df1, select = c(loc_type, ev_type, region, n_killed_a, know_ini, weapon, sc_animosity, anti_gov_sentmnts, pol_desires, n_injurd, duration))
+
+trainIndex <- createDataPartition(rf_df_t10$duration, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+binary_train_data <- rf_df_t10[ trainIndex,]
+binary_test_data  <- rf_df_t10[-trainIndex,]
+
+rf_t10 <- randomForest(duration ~ ., data = binary_train_data, na.action = na.omit)
+rf_t10
+varImpPlot(rf_t10)
+test_rf_t10 <- predict(rf_t10, binary_test_data)
+confusionMatrix(test_rf_t10, binary_test_data$duration, positive = '1')
+```
+
+```{r}
+
+```
