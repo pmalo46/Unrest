@@ -19,8 +19,8 @@ library(dplyr)
 library(randomForest)
 library(caret)
 
-df1 <- read.csv('df_binary.csv')
-df2 <- read.csv('three_cat.csv')
+df1 <- read.csv('https://raw.githubusercontent.com/pmalo46/Unrest/main/df_binary.csv')
+df2 <- read.csv('https://raw.githubusercontent.com/pmalo46/Unrest/main/three_cat.csv')
 
 df1$month <- factor(df1$month)
 df1$know_ini <- factor(df1$know_ini)
